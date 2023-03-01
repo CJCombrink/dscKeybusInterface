@@ -230,6 +230,7 @@ const char* mqttStatusTopic = "dsc/Status";            // Sends online/offline s
 const char* mqttBirthMessage = "online";
 const char* mqttLwtMessage = "offline";
 const char* mqttSubscribeTopic = "dsc/Set";            // Receives messages to write to the panel
+const char* mqttBypassTopic = "dsc/Get/Bypass";
 
 // Configures the Keybus interface with the specified pins - dscWritePin is optional, leaving it out disables the
 // virtual keypad.
@@ -247,7 +248,7 @@ dscClassicInterface dsc(dscClockPin, dscReadPin, dscPC16Pin, dscWritePin, access
 WiFiClient ipClient;
 PubSubClient mqtt(mqttServer, mqttPort, ipClient);
 unsigned long mqttPreviousTime;
-
+byte bypassedZones[dscZones];
 
 void setup() {
   Serial.begin(115200);
@@ -274,7 +275,6 @@ void setup() {
   dsc.begin();
   Serial.println(F("DSC Keybus Interface is online."));
 }
-
 
 void loop() {
   mqttHandle();
@@ -438,6 +438,34 @@ void loop() {
 
     mqtt.subscribe(mqttSubscribeTopic);
   }
+  
+  if (dsc.panelData[0] == 0xA5) {
+    if ((dsc.panelData[5] & 0x03) == 0x01) {
+      //case 0x01: printPanelStatus1(6); return;
+      if ((dsc.panelData[6] >= 0xB0) && (dsc.panelData[6] <= 0xCF)) {
+        // printNumberOffset(panelByte, -175);
+        const byte zoneNumber = dsc.panelData[6] - 0xB0; // 0 Based
+        
+        // Appends the mqttBypassTopic with the zone number
+        char bypassPublishTopic[strlen(mqttBypassTopic) + 3];
+        char zone[3];
+        strcpy(bypassPublishTopic, mqttBypassTopic);
+        itoa(zoneNumber + 1, zone, 10);
+        strcat(bypassPublishTopic, zone);
+
+        const byte zoneBit   = zoneNumber % 8;
+        const byte zoneGroup = zoneNumber / 8;
+      
+        // What do I do here?
+        if (bitRead(bypassedZones[zoneGroup], zoneBit)) {
+          mqtt.publish(bypassPublishTopic, "1", true); // Zone Bypassed
+        }
+        else {
+          mqtt.publish(bypassPublishTopic, "0", true);  
+        }
+      }
+    }
+  }
 }
 
 
@@ -518,6 +546,10 @@ bool mqttConnect() {
     Serial.print(F("connected: "));
     Serial.println(mqttServer);
     dsc.resetStatus();  // Resets the state of all status components as changed to get the current status
+    // Reset the bypassed zones
+    for (byte zoneGroup = 0; zoneGroup < dscZones; ++zoneGroup) {
+      bypassedZones[zoneGroup] = 0x00;
+    }
   }
   else {
     Serial.print(F("connection error: "));
