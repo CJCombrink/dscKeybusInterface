@@ -223,7 +223,9 @@ const char* mqttPartitionMessageSuffix = "/Message";   // Sends partition status
 const char* mqttZoneTopic = "dsc/Get/Zone";            // Sends zone status per zone: dsc/Get/Zone1 ... dsc/Get/Zone64
 const char* mqttFireTopic = "dsc/Get/Fire";            // Sends fire status per partition: dsc/Get/Fire1 ... dsc/Get/Fire8
 const char* mqttPgmTopic = "dsc/Get/PGM";              // Sends PGM status per PGM: dsc/Get/PGM1 ... dsc/Get/PGM14
-const char* mqttTroubleTopic = "dsc/Get/Trouble";      // Sends trouble status
+const char* mqttTroubleTopic        = "dsc/Get/Trouble";        // Sends trouble status
+const char* mqttPowerTroubleTopic   = "dsc/Get/PowerTrouble";   // Sends AC power trouble status
+const char* mqttBatteryTroubleTopic = "dsc/Get/BatteryTrouble"; // Sends Battery trouble status
 const char* mqttStatusTopic = "dsc/Status";            // Sends online/offline status
 const char* mqttBirthMessage = "online";
 const char* mqttLwtMessage = "offline";
@@ -302,10 +304,25 @@ void loop() {
       dsc.write(accessCode);
     }
 
+    // Checks trouble status
     if (dsc.troubleChanged) {
       dsc.troubleChanged = false;  // Resets the trouble status flag
       if (dsc.trouble) mqtt.publish(mqttTroubleTopic, "1", true);
       else mqtt.publish(mqttTroubleTopic, "0", true);
+    }
+
+    // Checks for AC power status
+    if (dsc.powerChanged) {
+      dsc.powerChanged = false;  // Resets the AC trouble status flag
+      if (dsc.powerTrouble) mqtt.publish(mqttPowerTroubleTopic, "1", true);
+      else mqtt.publish(mqttPowerTroubleTopic, "0", true);
+    }
+
+    // Checks panel battery status
+    if (dsc.batteryChanged) {
+      dsc.batteryChanged = false;  // Resets the battery trouble status flag
+      if (dsc.batteryTrouble) mqtt.publish(mqttBatteryTroubleTopic, "1", true);
+      else mqtt.publish(mqttBatteryTroubleTopic, "0", true);
     }
 
     // Publishes status per partition
